@@ -118,3 +118,45 @@ py.test --testrail --tr-config=<settings file>.cfg
                         TestRail
   --tr-skip-missing     Skip test cases that are not present in testrun
 ```
+Update case from docstring
+-----
+
+If the user want to update an existing test case from the docstring.
+The user shall use the key parameter for updating, only parameter added will be updated.
+If, there is no docsting in you python script test, no update will be done.
+The line start by @name_of_parameter and shall be end by @End
+To use this feature, the user shall add the followings parameters in the test script docsting:
+### All available parameters
+
+```
+    @Estimate: Estimate string value @End
+    @Priority: Priority int value 'to be defined' = 0 to 'deprecated' = 5 @End
+    @Type: Type int value 'Acceptance' = 0 to 'Usability' = 13 @End
+    @Milestone: Milestone string value @End
+    @Reference: Reference string value @End
+    @Goals: Goals String value @End
+    @Preconditions: Preconditions string value @End
+    @Step: step1 string value @End
+    @Expected: expected1 string value @End
+    @Step: step2 string value @End
+    @Expected: expected2 string value @End
+    .
+    .
+    .
+ 
+Example:
+@testrail('C1234', 'C5678')
+def test_func():
+    "@Estimate: 1m 5s @End\
+    @Priority: 2 @End\
+    @Type: 4 @End\
+    @Milestone: None @End\
+    @Reference: None @End\
+    @Goals: Check and test @End\
+    @Preconditions: Fileapplicationisdeployed @End\
+    @Step: step1 @End\
+    @Expected: expected1 @End\
+    @Step: step2 @End\
+    @Expected: expected2 @End"
+    pass
+```

@@ -27,6 +27,7 @@ TESTRAIL_PREFIX = 'testrail'
 
 ADD_RESULT_URL = 'add_result_for_case/{}/{}'
 ADD_TESTRUN_URL = 'add_run/{}'
+UPDATE_CASE = 'update_case/{}'
 CLOSE_TESTRUN_URL = 'close_run/{}'
 CLOSE_TESTPLAN_URL = 'close_plan/{}'
 GET_TESTRUN_URL = 'get_run/{}'
@@ -104,12 +105,12 @@ def get_testrail_keys(items):
     """Return Tuple of Pytest nodes and TestRail ids from pytests markers"""
     testcaseids = []
     for item in items:
-        if item.get_marker(TESTRAIL_PREFIX):
+        if item.get_closest_marker(TESTRAIL_PREFIX):
             testcaseids.append(
                 (
                     item,
                     clean_test_ids(
-                        item.get_marker(TESTRAIL_PREFIX).kwargs.get('ids')
+                        item.get_closest_marker(TESTRAIL_PREFIX).kwargs.get('ids')
                     )
                 )
             )
@@ -133,6 +134,7 @@ class PyTestRailPlugin(object):
         self.close_on_complete = close_on_complete
         self.publish_blocked = publish_blocked
         self.skip_missing = skip_missing
+        self.update_case = {}
 
     # pytest hooks
 
@@ -182,13 +184,16 @@ class PyTestRailPlugin(object):
         """ Collect result and associated testcases (TestRail) of an execution """
         outcome = yield
         rep = outcome.get_result()
-        if item.get_marker(TESTRAIL_PREFIX):
-            testcaseids = item.get_marker(TESTRAIL_PREFIX).kwargs.get('ids')
+        if item.get_closest_marker(TESTRAIL_PREFIX):
+            testcaseids = item.get_closest_marker(TESTRAIL_PREFIX).kwargs.get('ids')
 
             if rep.when == 'call' and testcaseids:
+                docstring = item._obj.__doc__
+                if docstring:
+                    self.parse_docstring(docstring=docstring.split('@End'))
                 self.add_result(
                     clean_test_ids(testcaseids),
-                    get_test_outcome(outcome.result.outcome),
+                    get_test_outcome(outcome.get_result().outcome),
                     comment=rep.longrepr,
                     duration=rep.duration
                 )
@@ -292,6 +297,18 @@ class PyTestRailPlugin(object):
                 print('[{}] Info: Testcase #{} not published for following reason: "{}"'.format(TESTRAIL_PREFIX,
                                                                                                 result['case_id'],
                                                                                                 error))
+            # update case if needed
+            if self.update_case:
+                response = self.client.send_post(
+                    UPDATE_CASE.format(result['case_id']),
+                    self.update_case,
+                    cert_check=self.cert_check
+                )
+                error = self.client.get_error(response)
+                if error:
+                    print('[{}] Info: Testcase #{} not published for following reason: "{}"'.format(TESTRAIL_PREFIX,
+                                                                                                    result['case_id'],
+                                                                                                    error))
 
     def create_test_run(
             self, assign_user_id, project_id, suite_id, include_all, testrun_name, tr_keys):
@@ -425,3 +442,33 @@ class PyTestRailPlugin(object):
             print('[{}] Failed to get tests: "{}"'.format(TESTRAIL_PREFIX, error))
             return None
         return response
+
+    def parse_docstring(self, docstring):
+        expects = []
+        steps = []
+        if docstring:
+            for docstr in docstring:
+                if docstr.strip().startswith('@Estimate:'):
+                    self.update_case['estimate'] = docstr[docstr.find(':') + 1:].strip()
+                if docstr.strip().startswith('@Priority:'):
+                    self.update_case['priority_id'] = int(docstr[docstr.find(':') + 1:].strip())
+                if docstr.strip().startswith('@Type:'):
+                    self.update_case['type_id'] = int(docstr[docstr.find(':') + 1:].strip())
+                if docstr.strip().startswith('@Milestone:'):
+                    self.update_case['milestone_id'] = int(docstr[docstr.find(':') + 1:].strip())
+                if docstr.strip().startswith('@Goals:'):
+                    self.update_case['custom_goals'] = docstr[docstr.find(':') + 1:].strip()
+                if docstr.strip().startswith('@References:'):
+                    self.update_case['refs'] = int(docstr[docstr.find(':') + 1:].strip())
+                if docstr.strip().startswith('@Preconditions:'):
+                    self.update_case['custom_preconds'] = docstr[docstr.find(':') + 1:].strip()
+                if docstr.strip().startswith('@Step:'):
+                    steps.append(docstr[docstr.find(':') + 1:].strip())
+                if docstr.strip().startswith('@Expected:'):
+                    expects.append(docstr[docstr.find(':') + 1:].strip())
+            if steps and 'custom_steps_separated' not in self.update_case:
+                self.update_case['custom_steps_separated'] = []
+            if steps and 'custom_steps_separated' in self.update_case:
+                for step, expected in zip(steps, expects):
+                    step_expect = {'content':step, 'expected':expected}
+                    self.update_case['custom_steps_separated'].append(step_expect)

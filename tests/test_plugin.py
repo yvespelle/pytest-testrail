@@ -15,13 +15,32 @@ ASSIGN_USER_ID = 3
 FAKE_NOW = datetime(2015, 1, 31, 19, 5, 42)
 PROJECT_ID = 4
 PYTEST_FILE = """
-    from pytest_testrail.plugin import testrail, pytestrail
-    @testrail('C1234', 'C5678')
-    def test_func():
-        pass
-    @pytestrail.case('C8765', 'C4321')
-    def test_other_func():
-        pass
+from pytest_testrail.plugin import testrail, pytestrail
+@testrail('C1234', 'C5678')
+def test_func():
+    pass
+@pytestrail.case('C8765', 'C4321')
+def test_other_func():
+    pass
+"""
+PYTEST_FILE_DOCSTRING = """
+from pytest_testrail.plugin import testrail, pytestrail
+@testrail('C1234', 'C5678')
+def test_func():
+    "@Estimate: 1m 5s @End\
+    @Priority: 2 @End\
+    @Type: 4 @End\
+    @Milestone: 5 @End\
+    @Goals: Check and test @End\
+    @Preconditions: Fileapplicationisdeployed @End\
+    @Step: step1 @End\
+    @Expected: expected1 @End\
+    @Step: step2 @End\
+    @Expected: expected2 @End"
+    pass
+@pytestrail.case('C8765', 'C4321')
+def test_other_func():
+    pass
 """
 SUITE_ID = 1
 TR_NAME = None
@@ -71,6 +90,10 @@ def pytest_test_items(testdir):
     testdir.makepyfile(PYTEST_FILE)
     return [item for item in testdir.getitems(PYTEST_FILE) if item.name != 'testrail']
 
+@pytest.fixture
+def pytest_test_items_docstring(testdir):
+    testdir.makepyfile(PYTEST_FILE_DOCSTRING)
+    return [item for item in testdir.getitems(PYTEST_FILE_DOCSTRING) if item.name != 'testrail']
 
 @freeze_time(FAKE_NOW)
 def test_testrun_name():
@@ -114,9 +137,7 @@ def test_add_result(tr_plugin):
             'duration': 3600
         }
     ]
-
     assert tr_plugin.results == expected_results
-
 
 def test_pytest_runtest_makereport(pytest_test_items, tr_plugin, testdir):
 
@@ -158,7 +179,119 @@ def test_pytest_runtest_makereport(pytest_test_items, tr_plugin, testdir):
             'duration': 2
         }
     ]
+
     assert tr_plugin.results == expected_results
+
+
+
+
+def test_pytest_runtest_makereport_with_docstring(pytest_test_items_docstring, tr_plugin, testdir):
+
+    # --------------------------------
+    # This part of code is a little tricky: it fakes the execution of pytest_runtest_makereport (generator)
+    # by artificially send a stub object (Outcome)
+    class Outcome:
+        def __init__(self):
+            testdir.makepyfile(PYTEST_FILE_DOCSTRING)
+            self.result = testdir.runpytest()
+            setattr(self.result, "when", "call")
+            setattr(self.result, "longrepr", "An error")
+            setattr(self.result, "outcome", "failed")
+            self.result.duration = 2
+
+        def get_result(self):
+            return self.result
+
+    outcome = Outcome()
+    f = tr_plugin.pytest_runtest_makereport(pytest_test_items_docstring[0], None)
+    f.send(None)
+    try:
+        f.send(outcome)
+    except StopIteration:
+        pass
+    # --------------------------------
+
+    expected_results = [
+        {
+            'case_id': 1234,
+            'status_id': TESTRAIL_TEST_STATUS["failed"],
+            'comment': "An error",
+            'duration': 2
+        },
+        {
+            'case_id': 5678,
+            'status_id': TESTRAIL_TEST_STATUS["failed"],
+            'comment': "An error",
+            'duration': 2
+        }
+    ]
+
+    expected_update_case = {
+        'estimate':'1m 5s',
+        'custom_preconds':'Fileapplicationisdeployed',
+        'type_id':4,
+        'custom_steps_separated':[
+            {'content':'step1', 'expected':'expected1'},
+            {'content':'step2', 'expected':'expected2'}
+        ], 'custom_goals':'Check and test',
+        'milestone_id':5,
+        'priority_id':2
+    }
+
+    assert tr_plugin.results == expected_results and tr_plugin.update_case == expected_update_case
+
+
+def test_pytest_send_update_case(pytest_test_items_docstring, tr_plugin, testdir, api_client):
+
+    # --------------------------------
+    # This part of code is a little tricky: it fakes the execution of pytest_runtest_makereport (generator)
+    # by artificially send a stub object (Outcome)
+    class Outcome:
+        def __init__(self):
+            testdir.makepyfile(PYTEST_FILE_DOCSTRING)
+            self.result = testdir.runpytest()
+            setattr(self.result, "when", "call")
+            setattr(self.result, "longrepr", "An error")
+            setattr(self.result, "outcome", "failed")
+            self.result.duration = 2
+
+        def get_result(self):
+            return self.result
+
+    outcome = Outcome()
+    f = tr_plugin.pytest_runtest_makereport(pytest_test_items_docstring[0], None)
+    f.send(None)
+    try:
+        f.send(outcome)
+    except StopIteration:
+        pass
+    # --------------------------------
+
+    expected_update_case = {
+        'estimate':'1m 5s',
+        'custom_preconds':'Fileapplicationisdeployed',
+        'type_id':4,
+        'custom_steps_separated':[
+            {'content':'step1', 'expected':'expected1'},
+            {'content':'step2', 'expected':'expected2'}
+        ], 'custom_goals':'Check and test',
+        'milestone_id':5,
+        'priority_id':2
+    }
+    # -----------------------------------
+
+    tr_plugin.results = [
+        {'case_id':1234, 'status_id':TESTRAIL_TEST_STATUS["failed"], 'duration':2.6}
+    ]
+    tr_plugin.testrun_id = 10
+
+    tr_plugin.pytest_sessionfinish(None, 0)
+
+    expected_result = plugin.ADD_RESULT_URL.format(tr_plugin.testrun_id, 1234)
+    expected_update = plugin.UPDATE_CASE.format(tr_plugin.testrun_id, 1234)
+    expected_data = {'status_id':TESTRAIL_TEST_STATUS["passed"], 'version':'1.0.0.0', 'elapsed':'3s'}
+    api_client.send_post.call_args_list[0] == call(expected_result, expected_data, cert_check=True)
+    api_client.send_post.call_args_list[1] == call(expected_update, expected_update_case, cert_check=True)
 
 
 def test_pytest_sessionfinish(api_client, tr_plugin):
@@ -338,8 +471,8 @@ def test_skip_missing_only_one_test(api_client, pytest_test_items):
 
     my_plugin.pytest_collection_modifyitems(None, None, pytest_test_items)
 
-    assert not pytest_test_items[0].get_marker('skip')
-    assert pytest_test_items[1].get_marker('skip')
+    assert not pytest_test_items[0].get_closest_marker('skip')
+    assert pytest_test_items[1].get_closest_marker('skip')
 
 
 def test_skip_missing_correlation_tests(api_client, pytest_test_items):
@@ -357,5 +490,5 @@ def test_skip_missing_correlation_tests(api_client, pytest_test_items):
 
     my_plugin.pytest_collection_modifyitems(None, None, pytest_test_items)
 
-    assert not pytest_test_items[0].get_marker('skip')
-    assert not pytest_test_items[1].get_marker('skip')
+    assert not pytest_test_items[0].get_closest_marker('skip')
+    assert not pytest_test_items[1].get_closest_marker('skip')
