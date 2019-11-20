@@ -189,7 +189,9 @@ class PyTestRailPlugin(object):
 
             if rep.when == 'call' and testcaseids:
                 docstring = item._obj.__doc__
+                print('[Start with docstring]')
                 if docstring:
+                    print('Docstring :: ', docstring)
                     self.parse_docstring(docstring=docstring.split('@End'))
                 self.add_result(
                     clean_test_ids(testcaseids),
@@ -339,7 +341,6 @@ class PyTestRailPlugin(object):
                                                                               testrun_name,
                                                                               self.testrun_id))
 
-
     def close_test_run(self, testrun_id):
         """
         Closes testrun.
@@ -472,3 +473,4 @@ class PyTestRailPlugin(object):
                 for step, expected in zip(steps, expects):
                     step_expect = {'content':step, 'expected':expected}
                     self.update_case['custom_steps_separated'].append(step_expect)
+        print("Docstring parsed", self.update_case)
