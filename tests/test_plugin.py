@@ -3,6 +3,7 @@ from datetime import datetime
 from freezegun import freeze_time
 from mock import call, create_autospec
 import pytest
+import requests
 
 from pytest_testrail import plugin
 from pytest_testrail.plugin import PyTestRailPlugin, TESTRAIL_TEST_STATUS
@@ -226,19 +227,37 @@ def test_pytest_runtest_makereport_with_docstring(pytest_test_items_docstring, t
         }
     ]
 
-    expected_update_case = {
-        'estimate':'1m 5s',
-        'custom_preconds':'Fileapplicationisdeployed',
-        'type_id':4,
-        'custom_steps_separated':[
-            {'content':'step1', 'expected':'expected1'},
-            {'content':'step2', 'expected':'expected2'}
-        ], 'custom_goals':'Check and test',
-        'milestone_id':5,
-        'priority_id':2
-    }
+    expected_update_case = [{
+        'case_id': 1234,
+        'update_case': {
+                'estimate': '1m 5s',
+                'custom_preconds': 'Fileapplicationisdeployed',
+                'type_id': 4,
+                'custom_steps_separated': [
+                    {'content': 'step1', 'expected':'expected1'},
+                    {'content': 'step2', 'expected':'expected2'}
+                ], 'custom_goals': 'Check and test',
+                'milestone_id': 5,
+                'priority_id': 2
+            }
+    },
+        {
+            'case_id': 5678,
+            'update_case': {
+                'estimate': '1m 5s',
+                'custom_preconds': 'Fileapplicationisdeployed',
+                'type_id': 4,
+                'custom_steps_separated': [
+                    {'content': 'step1', 'expected':'expected1'},
+                    {'content': 'step2', 'expected':'expected2'}
+                ], 'custom_goals': 'Check and test',
+                'milestone_id': 5,
+                'priority_id': 2
+            }
+        }
+    ]
 
-    assert tr_plugin.results == expected_results and tr_plugin.update_case == expected_update_case
+    assert tr_plugin.results == expected_results and tr_plugin.update_cases == expected_update_case
 
 
 def test_pytest_send_update_case(pytest_test_items_docstring, tr_plugin, testdir, api_client):

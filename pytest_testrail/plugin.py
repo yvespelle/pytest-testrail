@@ -135,6 +135,7 @@ class PyTestRailPlugin(object):
         self.publish_blocked = publish_blocked
         self.skip_missing = skip_missing
         self.update_case = {}
+        self.update_cases = []
 
     # pytest hooks
 
@@ -193,6 +194,8 @@ class PyTestRailPlugin(object):
                 if docstring:
                     print('Docstring :: ', docstring)
                     self.parse_docstring(docstring=docstring.split('@End'))
+                    self.add_update_case(test_ids=clean_test_ids(testcaseids))
+                    print("pytest_runtest_makereport :: add_update_case")
                 self.add_result(
                     clean_test_ids(testcaseids),
                     get_test_outcome(outcome.get_result().outcome),
@@ -201,12 +204,11 @@ class PyTestRailPlugin(object):
                 )
 
     def pytest_sessionfinish(self, session, exitstatus):
-        """ Publish results in TestRail """
+        """ Publish results in TestRail and update case if needed"""
         print('[{}] Start publishing'.format(TESTRAIL_PREFIX))
         if self.results:
             tests_list = [str(result['case_id']) for result in self.results]
             print('[{}] Testcases to publish: {}'.format(TESTRAIL_PREFIX, ', '.join(tests_list)))
-
             if self.testrun_id:
                 self.add_results(self.testrun_id)
             elif self.testplan_id:
@@ -221,6 +223,10 @@ class PyTestRailPlugin(object):
                 self.close_test_run(self.testrun_id)
             elif self.close_on_complete and self.testplan_id:
                 self.close_test_plan(self.testplan_id)
+        if self.update_cases:
+            tests_list = [str(result['case_id']) for result in self.results]
+            print('[{}] Testcases to update: {}'.format(TESTRAIL_PREFIX, ', '.join(tests_list)))
+            self.post_update_case()
         print('[{}] End publishing'.format(TESTRAIL_PREFIX))
 
     # plugin
@@ -299,18 +305,42 @@ class PyTestRailPlugin(object):
                 print('[{}] Info: Testcase #{} not published for following reason: "{}"'.format(TESTRAIL_PREFIX,
                                                                                                 result['case_id'],
                                                                                                 error))
-            # update case if needed
-            if self.update_case:
-                response = self.client.send_post(
-                    UPDATE_CASE.format(result['case_id']),
-                    self.update_case,
-                    cert_check=self.cert_check
-                )
-                error = self.client.get_error(response)
-                if error:
-                    print('[{}] Info: Testcase #{} not published for following reason: "{}"'.format(TESTRAIL_PREFIX,
-                                                                                                    result['case_id'],
-                                                                                                    error))
+
+    def add_update_case(self, test_ids):
+        """
+        Add a new result to results dict to be submitted at the end.
+
+        :param list test_ids: list of test_ids.
+        """
+        print('Update case')
+        for test_id in test_ids:
+            data = {
+                'case_id': test_id,
+                'update_case': self.update_case,
+            }
+            self.update_cases.append(data)
+        self.update_case = {}
+
+    def post_update_case(self):
+        """
+        Update test case
+        """
+        # update case if needed
+        print('post_update_case')
+        for update in self.update_cases:
+            print('Update test case : {}'.format(update['case_id']))
+            print('Update docstring : {}'.format(update['update_case']))
+            print('Update docstring Request : {}'.format(UPDATE_CASE.format(update['case_id'])))
+            response = self.client.send_post(
+                UPDATE_CASE.format(update['case_id']),
+                update['update_case'],
+                cert_check=self.cert_check
+            )
+            error = self.client.get_error(response)
+            if error:
+                print('[{}] Info: Testcase #{} cannot be updated for following reason: "{}"'.format(TESTRAIL_PREFIX,
+                                                                                                update['case_id'],
+                                                                                                error))
 
     def create_test_run(
             self, assign_user_id, project_id, suite_id, include_all, testrun_name, tr_keys):
