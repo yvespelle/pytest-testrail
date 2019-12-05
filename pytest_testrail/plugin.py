@@ -500,7 +500,8 @@ class PyTestRailPlugin(object):
             if steps and 'custom_steps_separated' not in self.update_case:
                 self.update_case['custom_steps_separated'] = []
             if steps and 'custom_steps_separated' in self.update_case:
+                self.update_case['template_id'] = 2
                 for step, expected in zip(steps, expects):
-                    step_expect = {'content':step, 'expected':expected}
+                    step_expect = {'content': step, 'expected':expected}
                     self.update_case['custom_steps_separated'].append(step_expect)
         print("Docstring parsed", self.update_case)
