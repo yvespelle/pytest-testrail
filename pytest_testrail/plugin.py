@@ -203,7 +203,7 @@ class PyTestRailPlugin(object):
                     duration=rep.duration
                 )
 
-    def pytest_sessionfinish(self, session, exitstatus):
+    def pytest_sessionfinish(self, session='', exitstatus=''):
         """ Publish results in TestRail and update case if needed"""
         print('[{}] Start publishing'.format(TESTRAIL_PREFIX))
         if self.results:
@@ -490,7 +490,7 @@ class PyTestRailPlugin(object):
                 if docstr.strip().startswith('@Goals:'):
                     self.update_case['custom_goals'] = docstr[docstr.find(':') + 1:].strip()
                 if docstr.strip().startswith('@References:'):
-                    self.update_case['refs'] = int(docstr[docstr.find(':') + 1:].strip())
+                    self.update_case['refs'] = docstr[docstr.find(':') + 1:].strip()
                 if docstr.strip().startswith('@Preconditions:'):
                     self.update_case['custom_preconds'] = docstr[docstr.find(':') + 1:].strip()
                 if docstr.strip().startswith('@Step:'):
