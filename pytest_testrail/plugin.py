@@ -20,7 +20,35 @@ PYTEST_TO_TESTRAIL_STATUS = {
     "failed": TESTRAIL_TEST_STATUS["failed"],
     "skipped": TESTRAIL_TEST_STATUS["blocked"],
 }
-
+TEST_CASE_PRIORITY = {
+    "Low": 1,
+    "Medium": 2,
+    "High": 3,
+    "Critical": 4,
+    "To be defined": 5,
+    "Deprecated": 6
+}
+TEST_CASE_TYPE = {
+    "Acceptance": 1,
+    "Accessibility": 2,
+    "Compatibility": 4,
+    "Destructive": 5,
+    "Endurance": 14,
+    "Exploratory": 13,
+    "Functional": 6,
+    "Other": 7,
+    "Performance": 8,
+    "Regression": 9,
+    "Robustness": 15,
+    "Security": 10,
+    "Smoke & Sanity": 11,
+    "Usability": 12
+}
+TEST_CASE_AUTOMATING_STATUS = {
+    "Automated": 1,
+    "Semi Automated": 2,
+    "Manual": 3
+}
 DT_FORMAT = '%d-%m-%Y %H:%M:%S'
 
 TESTRAIL_PREFIX = 'testrail'
@@ -482,17 +510,19 @@ class PyTestRailPlugin(object):
                 if docstr.strip().startswith('@Estimate:'):
                     self.update_case['estimate'] = docstr[docstr.find(':') + 1:].strip()
                 if docstr.strip().startswith('@Priority:'):
-                    self.update_case['priority_id'] = int(docstr[docstr.find(':') + 1:].strip())
+                    self.update_case['priority_id'] = int(TEST_CASE_PRIORITY[docstr[docstr.find(':') + 1:].strip()])
                 if docstr.strip().startswith('@Type:'):
-                    self.update_case['type_id'] = int(docstr[docstr.find(':') + 1:].strip())
+                    self.update_case['type_id'] = int(TEST_CASE_TYPE[docstr[docstr.find(':') + 1:].strip()])
                 if docstr.strip().startswith('@Milestone:'):
-                    self.update_case['milestone_id'] = int(docstr[docstr.find(':') + 1:].strip())
+                    self.update_case['milestone_id'] = docstr[docstr.find(':') + 1:].strip()
                 if docstr.strip().startswith('@Goals:'):
                     self.update_case['custom_goals'] = docstr[docstr.find(':') + 1:].strip()
                 if docstr.strip().startswith('@References:'):
                     self.update_case['refs'] = docstr[docstr.find(':') + 1:].strip()
                 if docstr.strip().startswith('@Preconditions:'):
                     self.update_case['custom_preconds'] = docstr[docstr.find(':') + 1:].strip()
+                if docstr.strip().startswith('@Automating Status:'):
+                    self.update_case['custom_automating'] = int(TEST_CASE_AUTOMATING_STATUS[docstr[docstr.find(':') + 1:].strip()])
                 if docstr.strip().startswith('@Step:'):
                     steps.append(docstr[docstr.find(':') + 1:].strip())
                 if docstr.strip().startswith('@Expected:'):
