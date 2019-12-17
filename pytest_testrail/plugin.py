@@ -218,12 +218,10 @@ class PyTestRailPlugin(object):
 
             if rep.when == 'call' and testcaseids:
                 docstring = item._obj.__doc__
-                print('[Start with docstring]')
                 if docstring:
-                    print('Docstring :: ', docstring)
                     self.parse_docstring(docstring=docstring.split('@End'))
                     self.add_update_case(test_ids=clean_test_ids(testcaseids))
-                    print("pytest_runtest_makereport :: add_update_case")
+
                 self.add_result(
                     clean_test_ids(testcaseids),
                     get_test_outcome(outcome.get_result().outcome),
@@ -340,7 +338,6 @@ class PyTestRailPlugin(object):
 
         :param list test_ids: list of test_ids.
         """
-        print('Update case')
         for test_id in test_ids:
             data = {
                 'case_id': test_id,
@@ -354,11 +351,7 @@ class PyTestRailPlugin(object):
         Update test case
         """
         # update case if needed
-        print('post_update_case')
         for update in self.update_cases:
-            print('Update test case : {}'.format(update['case_id']))
-            print('Update docstring : {}'.format(update['update_case']))
-            print('Update docstring Request : {}'.format(UPDATE_CASE.format(update['case_id'])))
             response = self.client.send_post(
                 UPDATE_CASE.format(update['case_id']),
                 update['update_case'],
@@ -534,4 +527,3 @@ class PyTestRailPlugin(object):
                 for step, expected in zip(steps, expects):
                     step_expect = {'content': step, 'expected':expected}
                     self.update_case['custom_steps_separated'].append(step_expect)
-        print("Docstring parsed", self.update_case)
