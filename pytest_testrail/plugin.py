@@ -5,6 +5,7 @@ from operator import itemgetter
 import pytest
 import re
 import warnings
+import itertools
 
 # Reference: http://docs.gurock.com/testrail-api2/reference-statuses
 TESTRAIL_TEST_STATUS = {
@@ -60,7 +61,7 @@ CLOSE_TESTRUN_URL = 'close_run/{}'
 CLOSE_TESTPLAN_URL = 'close_plan/{}'
 GET_TESTRUN_URL = 'get_run/{}'
 GET_TESTPLAN_URL = 'get_plan/{}'
-GET_TESTS_URL = 'get_tests/{}'
+GET_TESTS_URL = 'get_tests/{run_id}&offset={offset}'
 
 COMMENT_SIZE_LIMIT = 4000
 
@@ -485,15 +486,18 @@ class PyTestRailPlugin(object):
         :return: the list of tests containing in a testrun.
 
         """
-        response = self.client.send_get(
-            GET_TESTS_URL.format(run_id),
-            cert_check=self.cert_check
-        )
-        error = self.client.get_error(response)
-        if error:
-            print('[{}] Failed to get tests: "{}"'.format(TESTRAIL_PREFIX, error))
-            return None
-        return response
+        result = []
+        offset = 250
+        for n in itertools.count(start=0):
+            url = GET_TESTS_URL.format(run_id=run_id, offset=(n * offset))
+            response = self.client.send_get(url, cert_check=self.cert_check)
+            error = self.client.get_error(response)
+            if error:
+                print('[{}] Failed to get tests: "{}"'.format(TESTRAIL_PREFIX, error))
+                return None
+            result.extend(response["tests"])
+            if not len(response["tests"]) == offset:
+                return result
 
     def parse_docstring(self, docstring):
         expects = []
