@@ -55,6 +55,7 @@ DT_FORMAT = '%d-%m-%Y %H:%M:%S'
 TESTRAIL_PREFIX = 'testrail'
 
 ADD_RESULT_URL = 'add_result_for_case/{}/{}'
+ADD_RESULTS_URL = "add_results_for_cases/{run_id}"
 ADD_TESTRUN_URL = 'add_run/{}'
 UPDATE_CASE = 'update_case/{}'
 CLOSE_TESTRUN_URL = 'close_run/{}'
@@ -308,6 +309,7 @@ class PyTestRailPlugin(object):
             print('[{}] Option "Include all testcases from test suite for test run" activated'.format(TESTRAIL_PREFIX))
 
         # Publish results
+        data_results = []
         for result in self.results:
             data = {'status_id': result['status_id']}
             if self.version:
@@ -317,21 +319,23 @@ class PyTestRailPlugin(object):
                 # Indent text to avoid string formatting by TestRail. Limit size of comment.
                 data['comment'] = u"# Pytest result: #\n"
                 data['comment'] += u'Log truncated\n...\n' if len(str(comment)) > COMMENT_SIZE_LIMIT else u''
-                data['comment'] += u"    " + converter(str(comment), "utf-8")[-COMMENT_SIZE_LIMIT:].replace('\n', '\n    ')
+                data['comment'] += u"    " + converter(str(comment), "utf-8")[-COMMENT_SIZE_LIMIT:].replace(
+                    '\n', '\n    ')
             duration = result.get('duration')
             if duration:
-                duration = 1 if (duration < 1) else int(round(duration))  # TestRail API doesn't manage milliseconds
+                duration = 1 if (duration < 1) else int(round(duration))    # TestRail API doesn't manage milliseconds
                 data['elapsed'] = str(duration) + 's'
-            response = self.client.send_post(
-                ADD_RESULT_URL.format(testrun_id, result['case_id']),
-                data,
-                cert_check=self.cert_check
-            )
-            error = self.client.get_error(response)
-            if error:
-                print('[{}] Info: Testcase #{} not published for following reason: "{}"'.format(TESTRAIL_PREFIX,
-                                                                                                result['case_id'],
-                                                                                                error))
+            data_results.append()
+            data["case_id"] = result['case_id']
+
+        response = self.client.send_post(
+            ADD_RESULTS_URL.format(testrun_id), {"results": data}, cert_check=self.cert_check)
+        # response = self.client.send_post(
+        #     ADD_RESULT_URL.format(testrun_id, result['case_id']), data, cert_check=self.cert_check)
+        error = self.client.get_error(response)
+        if error:
+            print('[{}] Info: Testcases not published for following reason: "{}"'.format(
+                TESTRAIL_PREFIX, error))
 
     def add_update_case(self, test_ids):
         """
